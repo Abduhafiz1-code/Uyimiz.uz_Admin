@@ -7,13 +7,13 @@ import { login, state } from '../store'
 const router = useRouter()
 const route = useRoute()
 
-const username = ref('')
+const phone = ref('')
 const password = ref('')
 const showPassword = ref(false)
 
 async function onSubmit() {
-  if (!username.value.trim() || !password.value) return
-  const ok = await login(username.value.trim(), password.value)
+  if (!phone.value.trim() || !password.value) return
+  const ok = await login(phone.value.trim(), password.value)
   if (ok) {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     router.replace(redirect)
@@ -34,11 +34,11 @@ async function onSubmit() {
 
       <form @submit.prevent="onSubmit" novalidate>
         <div class="form-row">
-          <label>Login</label>
+          <label>Telefon</label>
           <input
-            v-model="username"
+            v-model="phone"
             type="text"
-            placeholder="Login"
+            placeholder="+998 90 123 45 67"
             autocomplete="username"
             autofocus
           />

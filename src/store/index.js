@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import api from '../api'
+import api, { authApi } from '../api'
 
 const TOKEN_KEY = 'uyimiz_admin_token'
 const ADMIN_KEY = 'uyimiz_admin_user'
@@ -67,16 +67,137 @@ function fail(e, fallback) {
   showToast(msg)
 }
 
+/** DRF ViewSet'lari sahifalangan javob qaytaradi ({count, next, previous, results}),
+ *  @api_view funksiyalari esa oddiy massiv. Ikkalasini ham bir xil ko'rinishga keltiramiz. */
+function asList(res) {
+  if (Array.isArray(res)) return res
+  if (res && Array.isArray(res.results)) return res.results
+  return []
+}
+
+function formatDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  } catch {
+    return iso
+  }
+}
+
+/* ---------- uyimiz-backend (Django) <-> admin panel maydon nomlari moslashtiruvchisi ----------
+   Backend snake_case va ba'zan boshqacha nom ishlatadi; panel UI eski (mock) nomlarni kutadi.
+   Barcha "tarjima" shu yerda — view fayllarga tegilmaydi. */
+
+const USER_KIND_TO_TYPE_KEY = { owner: 'uy_egalari', buyer: 'xaridorlar', tenant: 'ijarachilar' }
+const TYPE_LABEL_TO_USER_KIND = { 'Uy egasi': 'owner', Xaridor: 'buyer', Ijarachi: 'tenant' }
+const DEAL_TO_LABEL = { sale: 'Sotish', rent: 'Ijara', daily: 'Kunlik ijara' }
+const LISTING_STATUS_TO_LABEL = {
+  pending: 'Kutilmoqda',
+  active: 'Faol',
+  rejected: 'Rad etilgan',
+  dealt: 'Bitim tuzilgan',
+  archived: 'Arxiv',
+}
+
+function formatPrice(value, currency) {
+  const num = Number(value)
+  if (Number.isNaN(num)) return value
+  const suffix = String(currency || '').toLowerCase() === 'usd' ? '$' : "so'm"
+  return `${num.toLocaleString('ru-RU')} ${suffix}`
+}
+
+function normalizeUser(u) {
+  return {
+    ...u,
+    typeKey: u.role === 'agent' ? 'agentlar' : (USER_KIND_TO_TYPE_KEY[u.user_kind] || ''),
+    since: formatDate(u.since),
+  }
+}
+
+function normalizeAgent(a) {
+  return {
+    ...a,
+    cert: a.certification,
+    deals: a.total_deals,
+    // DRF DecimalField'ni matn ko'rinishida qaytaradi — UI'da .toFixed() ishlashi uchun songa o'giramiz
+    rating: Number(a.rating),
+    commission: Number(a.commission_rate),
+  }
+}
+
+function normalizeListing(p) {
+  return {
+    ...p,
+    title: p.district ? `${p.district} — ${p.address}` : p.address,
+    dealType: DEAL_TO_LABEL[p.deal] || 'Sotish',
+    owner: p.owner_name,
+    status: LISTING_STATUS_TO_LABEL[p.status] || p.status,
+    price: formatPrice(p.price, p.currency),
+    date: formatDate(p.created_at),
+  }
+}
+
+function normalizeModerationItem(m) {
+  return { ...m, title: m.listing_title }
+}
+
+function normalizeTariff(t) {
+  return { ...t, price: t.price_label, desc: t.description }
+}
+
+function normalizeSettings(s) {
+  return {
+    aiThreshold: s.ai_threshold,
+    commission: s.deal_commission_percent,
+    contractPrice: s.contract_price,
+    vipPrice: s.vip_price,
+    premiumPostPrice: s.premium_post_price,
+    agentCommission: s.agent_commission_percent,
+    platformShare: s.platform_share_percent,
+    agentSubscription: s.agent_subscription_price,
+    stage: s.stage,
+  }
+}
+const SETTINGS_FIELD_TO_BACKEND = {
+  aiThreshold: 'ai_threshold',
+  commission: 'deal_commission_percent',
+  contractPrice: 'contract_price',
+  vipPrice: 'vip_price',
+  premiumPostPrice: 'premium_post_price',
+  agentCommission: 'agent_commission_percent',
+  platformShare: 'platform_share_percent',
+  agentSubscription: 'agent_subscription_price',
+  stage: 'stage',
+}
+
+function normalizeAdminAccount(a) {
+  return {
+    ...a,
+    username: a.phone, // login telefon raqami orqali amalga oshadi, alohida username yo'q
+    role: a.admin_title,
+    status: a.is_active ? 'Faol' : 'Bloklangan',
+    since: formatDate(a.date_joined),
+  }
+}
+
+function normalizeAuditItem(a) {
+  return { time: formatDate(a.created_at), admin: a.admin_name, action: a.action, object: a.object_label }
+}
+
 /* ---------- Auth ---------- */
-export async function login(username, password) {
+export async function login(phone, password) {
   state.authLoading = true
   state.authError = null
   try {
-    const res = await api.post('/auth/login', { username, password })
+    const res = await authApi.post('/login', { phone, password })
+    if (!['admin', 'superadmin'].includes(res.role)) {
+      state.authError = 'Bu login admin panel uchun emas'
+      return false
+    }
     state.token = res.token
-    state.currentAdmin = res.admin
+    state.currentAdmin = { ...res.user, status: res.user.is_active ? 'Faol' : 'Bloklangan' }
     localStorage.setItem(TOKEN_KEY, res.token)
-    localStorage.setItem(ADMIN_KEY, JSON.stringify(res.admin))
+    localStorage.setItem(ADMIN_KEY, JSON.stringify(state.currentAdmin))
     return true
   } catch (e) {
     state.authError = e?.message || "Login yoki parol noto'g'ri"
@@ -88,7 +209,7 @@ export async function login(username, password) {
 
 export async function logout() {
   try {
-    if (state.token) await api.post('/auth/logout')
+    if (state.token) await authApi.post('/logout')
   } catch {
     // tarmoq xatosi bo'lsa ham lokal sessiyani tozalaymiz
   }
@@ -107,7 +228,8 @@ export async function logout() {
 }
 
 export async function refreshAudit() {
-  state.audit = await api.get('/audit')
+  const audit = await api.get('/audit')
+  state.audit = asList(audit).map(normalizeAuditItem)
 }
 
 export async function loadAll() {
@@ -126,17 +248,17 @@ export async function loadAll() {
       api.get('/audit'),
       api.get('/dashboard'),
     ])
-    state.users = users
-    state.admins = admins
-    state.agents = agents
-    state.posts = posts
-    state.moderation = moderation
-    state.tariffs = tariffs
-    state.settings = settings
-    state.audit = audit
+    state.users = asList(users).map(normalizeUser)
+    state.admins = asList(admins).map(normalizeAdminAccount)
+    state.agents = asList(agents).map(normalizeAgent)
+    state.posts = asList(posts).map(normalizeListing)
+    state.moderation = asList(moderation).map(normalizeModerationItem)
+    state.tariffs = asList(tariffs).map(normalizeTariff)
+    state.settings = normalizeSettings(settings)
+    state.audit = asList(audit).map(normalizeAuditItem)
     state.dashboard = dashboard
   } catch (e) {
-    fail(e, "Backendga ulanib bo'lmadi. Server ishga tushirilganini tekshiring (npm run dev — backend papkasida).")
+    fail(e, "Backendga ulanib bo'lmadi. uyimiz-backend ishga tushirilganini tekshiring (python manage.py runserver).")
   } finally {
     state.loading = false
   }
@@ -146,7 +268,7 @@ export async function loadAll() {
 export async function toggleUserBlock(user) {
   try {
     const updated = await api.patch(`/users/${user.id}/toggle-block`)
-    Object.assign(user, updated)
+    Object.assign(user, normalizeUser(updated))
     showToast(user.name + (user.status === 'Bloklangan' ? ' bloklandi' : ' faollashtirildi'))
     await refreshAudit()
   } catch (e) { fail(e, 'Amalni bajarib bo\'lmadi') }
@@ -154,8 +276,10 @@ export async function toggleUserBlock(user) {
 
 export async function updateUser(user, patch) {
   try {
-    const updated = await api.put(`/users/${user.id}`, patch)
-    Object.assign(user, updated)
+    const payload = { name: patch.name, phone: patch.phone, is_active: patch.status === 'Faol' }
+    if (TYPE_LABEL_TO_USER_KIND[patch.type]) payload.user_kind = TYPE_LABEL_TO_USER_KIND[patch.type]
+    const updated = await api.put(`/users/${user.id}`, payload)
+    Object.assign(user, normalizeUser(updated))
     showToast(user.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()
     return true
@@ -165,8 +289,9 @@ export async function updateUser(user, patch) {
 /* ---------- Agents ---------- */
 export async function updateAgent(agent, patch) {
   try {
-    const updated = await api.put(`/agents/${agent.id}`, patch)
-    Object.assign(agent, updated)
+    const payload = { name: patch.name, commission_rate: patch.commission }
+    const updated = await api.put(`/agents/${agent.id}`, payload)
+    Object.assign(agent, normalizeAgent(updated))
     showToast(agent.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()
     return true
@@ -175,7 +300,7 @@ export async function updateAgent(agent, patch) {
 async function agentAction(agent, action, msgSuffix) {
   try {
     const updated = await api.patch(`/agents/${agent.id}/${action}`)
-    Object.assign(agent, updated)
+    Object.assign(agent, normalizeAgent(updated))
     showToast(agent.name + msgSuffix)
     await refreshAudit()
   } catch (e) { fail(e, 'Amalni bajarib bo\'lmadi') }
@@ -188,7 +313,7 @@ export const revokeAgent = (a) => agentAction(a, 'revoke', ' sertifikati bekor q
 export async function approvePost(post) {
   try {
     const updated = await api.patch(`/posts/${post.id}/approve`)
-    Object.assign(post, updated)
+    Object.assign(post, normalizeListing(updated))
     showToast("E'lon tasdiqlandi")
     await refreshAudit()
   } catch (e) { fail(e, 'Amalni bajarib bo\'lmadi') }
@@ -207,7 +332,8 @@ export async function approveModeration(item) {
   try {
     await api.patch(`/moderation/${item.id}/approve`)
     state.moderation = state.moderation.filter(m => m !== item)
-    const post = state.posts.find(p => p.id === item.id)
+    // item.id — moderatsiya navbati yozuvi, item.listing — e'lonning o'zi
+    const post = state.posts.find(p => p.id === item.listing)
     if (post) post.status = 'Faol'
     showToast('Tasdiqlandi')
     await refreshAudit()
@@ -217,7 +343,7 @@ export async function rejectModeration(item) {
   try {
     await api.patch(`/moderation/${item.id}/reject`)
     state.moderation = state.moderation.filter(m => m !== item)
-    const post = state.posts.find(p => p.id === item.id)
+    const post = state.posts.find(p => p.id === item.listing)
     if (post) post.status = 'Rad etilgan'
     showToast('Rad etildi')
     await refreshAudit()
@@ -227,8 +353,9 @@ export async function rejectModeration(item) {
 /* ---------- Admins ---------- */
 export async function addAdmin(payload) {
   try {
-    const created = await api.post('/admins', payload)
-    state.admins.push(created)
+    const body = { name: payload.name, phone: payload.phone, admin_title: payload.role, is_active: payload.status === 'Faol', password: payload.password }
+    const created = await api.post('/admins', body)
+    state.admins.push(normalizeAdminAccount(created))
     showToast(created.name + " admin sifatida qo'shildi")
     await refreshAudit()
     return true
@@ -236,8 +363,10 @@ export async function addAdmin(payload) {
 }
 export async function updateAdmin(admin, patch) {
   try {
-    const updated = await api.put(`/admins/${admin.id}`, patch)
-    Object.assign(admin, updated)
+    const body = { name: patch.name, phone: patch.phone, admin_title: patch.role, is_active: patch.status === 'Faol' }
+    if (patch.password) body.password = patch.password
+    const updated = await api.put(`/admins/${admin.id}`, body)
+    Object.assign(admin, normalizeAdminAccount(updated))
     showToast(admin.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()
     return true
@@ -255,8 +384,9 @@ export async function removeAdmin(admin) {
 /* ---------- Settings ---------- */
 export async function saveSetting(field, label) {
   try {
-    const updated = await api.put('/settings', { [field]: state.settings[field] })
-    Object.assign(state.settings, updated)
+    const backendField = SETTINGS_FIELD_TO_BACKEND[field] || field
+    const updated = await api.put('/settings', { [backendField]: state.settings[field] })
+    Object.assign(state.settings, normalizeSettings(updated))
     showToast(label + ' saqlandi')
     await refreshAudit()
   } catch (e) { fail(e, 'Saqlab bo\'lmadi') }
@@ -265,8 +395,8 @@ export async function saveSetting(field, label) {
 /* ---------- Tariffs ---------- */
 export async function saveTariff(tariff) {
   try {
-    const updated = await api.put(`/tariffs/${tariff.id}`, tariff)
-    Object.assign(tariff, updated)
+    const updated = await api.put(`/tariffs/${tariff.id}`, { name: tariff.name, price_label: tariff.price, period: tariff.period, description: tariff.desc })
+    Object.assign(tariff, normalizeTariff(updated))
     showToast(tariff.name + ' yangilandi')
     await refreshAudit()
   } catch (e) { fail(e, 'Saqlab bo\'lmadi') }

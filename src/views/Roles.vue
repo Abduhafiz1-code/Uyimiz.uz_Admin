@@ -21,19 +21,19 @@ const rows = [
 const showAdd = ref(false)
 const editing = ref(null)
 const showPassword = ref(false)
-const form = reactive({ name: '', phone: '', role: 'Admin', status: 'Faol', username: '', password: '' })
+const form = reactive({ name: '', phone: '', role: 'Admin', status: 'Faol', password: '' })
 const formError = ref('')
 
 function openAdd() {
   form.name = ''; form.phone = ''; form.role = 'Admin'; form.status = 'Faol'
-  form.username = ''; form.password = ''
+  form.password = ''
   formError.value = ''
   showAdd.value = true
 }
 function openEdit(a) {
   editing.value = a
   form.name = a.name; form.phone = a.phone; form.role = a.role; form.status = a.status
-  form.username = a.username || ''; form.password = ''
+  form.password = ''
   formError.value = ''
 }
 function closeModal() { showAdd.value = false; editing.value = null; showPassword.value = false }
@@ -42,7 +42,7 @@ const modalTitle = computed(() => editing.value ? 'Adminni tahrirlash' : "Yangi 
 async function save() {
   formError.value = ''
   if (!form.name.trim()) { formError.value = 'Ismni kiriting'; return }
-  if (!form.username.trim()) { formError.value = 'Login (username) kiriting'; return }
+  if (!form.phone.trim()) { formError.value = 'Telefon raqamini kiriting (login shu orqali amalga oshadi)'; return }
   if (!editing.value && form.password.length < 6) {
     formError.value = 'Parol kamida 6 belgidan iborat bo\'lishi kerak'
     return
@@ -52,7 +52,7 @@ async function save() {
     return
   }
 
-  const payload = { name: form.name, phone: form.phone, role: form.role, status: form.status, username: form.username }
+  const payload = { name: form.name, phone: form.phone, role: form.role, status: form.status }
   if (form.password) payload.password = form.password
 
   if (editing.value) {
@@ -90,12 +90,11 @@ onMounted(() => {
     <div class="panel" style="margin-bottom:20px;">
       <table>
         <thead>
-          <tr><th>ISM</th><th>LOGIN</th><th>TELEFON</th><th>ROL</th><th>HOLAT</th><th>QO'SHILGAN</th><th>AMALLAR</th></tr>
+          <tr><th>ISM</th><th>TELEFON (LOGIN)</th><th>ROL</th><th>HOLAT</th><th>QO'SHILGAN</th><th>AMALLAR</th></tr>
         </thead>
         <tbody>
           <tr v-for="a in state.admins" :key="a.id" style="cursor:pointer;" @click="openEdit(a)">
             <td class="name-main">{{ a.name }}</td>
-            <td>{{ a.username || '—' }}</td>
             <td>{{ a.phone }}</td>
             <td>{{ a.role }}</td>
             <td><span class="badge" :class="a.status === 'Faol' ? 'faol' : 'bloklangan'">{{ a.status }}</span></td>
@@ -139,12 +138,8 @@ onMounted(() => {
         <input v-model="form.name" type="text" placeholder="F.I.Sh" />
       </div>
       <div class="form-row">
-        <label>Telefon</label>
+        <label>Telefon (login sifatida ishlatiladi)</label>
         <input v-model="form.phone" type="text" placeholder="+998 90 123 45 67" />
-      </div>
-      <div class="form-row">
-        <label>Login (username)</label>
-        <input v-model="form.username" type="text" placeholder="masalan: usmon" autocomplete="off" />
       </div>
       <div class="form-row">
         <label>{{ editing ? "Yangi parol (o'zgartirmasangiz bo'sh qoldiring)" : 'Parol' }}</label>
