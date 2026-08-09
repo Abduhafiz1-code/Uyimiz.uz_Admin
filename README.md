@@ -16,19 +16,23 @@ Bu frontend endi o'zining backendiga ega emas — u loyihaning yagona backendi, 
 ## Ishga tushirish (ikkita terminalda)
 
 **1-terminal — backend (repo ildizidagi `uyimiz-backend/`):**
+
 ```bash
 cd ../uyimiz-backend
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
+
 Server `http://127.0.0.1:8000` da ishga tushadi.
 
 **2-terminal — bu frontend:**
+
 ```bash
 npm install
 npm run dev
 ```
+
 Brauzerda `http://localhost:5175` manzilini oching (dev serverdagi `/api` so'rovlari avtomatik `127.0.0.1:8000` ga proksilanadi).
 
 Kirish — admin yoki superadmin roli bilan yaratilgan foydalanuvchining **telefon raqami va paroli** orqali amalga oshadi (`/api/auth/login/`).
@@ -41,21 +45,22 @@ Kirish — admin yoki superadmin roli bilan yaratilgan foydalanuvchining **telef
 npm run build
 npm run preview
 ```
+
 Bunda ham `uyimiz-backend` alohida ishga tushirilgan bo'lishi kerak (masalan `gunicorn` orqali) va prod muhitda `/api` shu backendga yo'naltirilishi kerak (reverse-proxy: nginx va h.k.).
 
 ## API endpointlar (uyimiz-backend, `/api/admin/...`)
 
-| Resurs        | Metodlar |
-|---------------|----------|
-| `/api/admin/users/`            | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/toggle-block/`, `DELETE /:id/` |
-| `/api/admin/agents/`           | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/approve\|reject\|revoke/`, `DELETE /:id/` |
-| `/api/admin/posts/`            | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/approve\|reject/`, `DELETE /:id/` |
-| `/api/admin/moderation/`       | `GET`, `PATCH /:id/approve\|reject/` |
-| `/api/admin/tariffs/`          | `GET`, `PUT /:id/` |
-| `/api/admin/settings`          | `GET`, `PUT` |
-| `/api/admin/audit`             | `GET` |
-| `/api/admin/dashboard`         | `GET` — statistikalar (jami foydalanuvchi, faol agentlar va h.k.) |
-| `/api/auth/login/`             | `POST` — barcha rollar uchun umumiy login (`{phone, password}`) |
+| Resurs                   | Metodlar                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `/api/admin/users/`      | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/toggle-block/`, `DELETE /:id/`            |
+| `/api/admin/agents/`     | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/approve\|reject\|revoke/`, `DELETE /:id/` |
+| `/api/admin/posts/`      | `GET`, `POST`, `PUT /:id/`, `PATCH /:id/approve\|reject/`, `DELETE /:id/`         |
+| `/api/admin/moderation/` | `GET`, `PATCH /:id/approve\|reject/`                                              |
+| `/api/admin/tariffs/`    | `GET`, `PUT /:id/`                                                                |
+| `/api/admin/settings`    | `GET`, `PUT`                                                                      |
+| `/api/admin/audit`       | `GET`                                                                             |
+| `/api/admin/dashboard`   | `GET` — statistikalar (jami foydalanuvchi, faol agentlar va h.k.)                 |
+| `/api/auth/login/`       | `POST` — barcha rollar uchun umumiy login (`{phone, password}`)                   |
 
 Backend snake_case maydon nomlarini ishlatadi (masalan `certification`, `total_deals`, `commission_rate`, `ai_threshold`); bu eski (mock) UI kutgan nomlar bilan `src/store/index.js` ichidagi `normalize*`/backend-field xarita funksiyalari orqali moslashtiriladi — view fayllarga tegilmagan.
 
@@ -79,3 +84,7 @@ Admin panel Uyimiz.uz strategik rejasidagi "maklersiz va makler bilan" modelga m
 - `src/router/index.js` — sahifalar orasidagi yo'nalish (vue-router)
 - `src/components/` — Sidebar, Icon, Toast
 - `src/views/` — har bir sahifa: Dashboard, Users, Agents, Posts, Moderation, Tariffs, Roles, Settings, Audit
+
+## Vercel deploy yo'riqnomasi
+
+Vercel ga deploy qilishda Node.js versiyasi `20.x` bo'lishi tavsiya etiladi. Agar buildda xato chiqsa, Vercel project settings ichida Node.js version ni `20.x` ga o'rnating.
