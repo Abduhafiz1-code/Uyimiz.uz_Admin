@@ -1,10 +1,17 @@
 // Yagona backend (uyimiz-backend, Django) bilan ishlash uchun API qatlami.
 // Admin panel endpointlari /api/admin/... ostida, login esa umumiy /api/auth/... da joylashgan
 // (bitta login barcha rollar — user/agent/admin — uchun, DRF standart "Token <key>" sxemasi).
-// VITE_API_BASE — backendning ildiz manzili (masalan
-// https://uyimiz-backend.onrender.com). Bo'sh qoldirilsa nisbiy yo'l
-// ishlatiladi va dev serverdagi proxy ishga tushadi (vite.config.js).
-const ROOT = (import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '')
+// Backend manzili.
+//   • dev            → bo'sh: vite proxy 127.0.0.1:8000 ga uzatadi
+//   • production     → Render'dagi backend
+// VITE_API_BASE berilsa, u ustun turadi.
+const PROD_API_BASE = 'https://uyimiz-backend.onrender.com'
+
+const ROOT = (() => {
+  const fromEnv = (import.meta.env.VITE_API_BASE || '').trim().replace(/\/+$/, '')
+  if (fromEnv) return fromEnv
+  return import.meta.env.PROD ? PROD_API_BASE : ''
+})()
 
 const ADMIN_BASE = import.meta.env.VITE_API_URL || `${ROOT}/api/admin`
 const AUTH_BASE = import.meta.env.VITE_AUTH_API_URL || `${ROOT}/api/auth`
