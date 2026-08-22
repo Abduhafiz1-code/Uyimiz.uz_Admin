@@ -14,11 +14,13 @@ function readStoredAdmin() {
 }
 
 export const state = reactive({
-  toast: null,
+  // Bildirishnomalar navbati. Ilgari bu oddiy satr edi va ketma-ket
+  // amallar bir-birining xabarini o'chirib yuborardi.
+  toasts: [],
   sidebarOpen: false,
   loading: true,
   error: null,
-  theme: 'light',
+  theme: 'dark',
 
   token: localStorage.getItem(TOKEN_KEY) || null,
   currentAdmin: readStoredAdmin(),
@@ -39,10 +41,20 @@ export const state = reactive({
   dashboard: { usersTotal: 0, activeAgents: 0, postsToday: 0, moderationCount: 0, postsTotal: 0, dealsTotal: 0, stage: 1 },
 })
 
-/* ---------- Theme (tungi rejim) ---------- */
+/* ---------- Mavzu (qorong'i / yorug') ----------
+   Kalit Uyimiz Agent paneli bilan bir xil (`uyimiz_theme`) — ikkala panel
+   bitta brauzerda ochilganda mavzu ham bir xil bo'ladi. Sukut bo'yicha
+   qorong'i, chunki dizayn taxtasining asosiy varianti shunday. */
+const THEME_KEY = 'uyimiz_theme'
+
 export function initTheme() {
-  const saved = localStorage.getItem('theme')
-  const preferred = saved || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  const saved = localStorage.getItem(THEME_KEY)
+  const preferred =
+    saved === 'dark' || saved === 'light'
+      ? saved
+      : window.matchMedia?.('(prefers-color-scheme: light)').matches
+        ? 'light'
+        : 'dark'
   applyTheme(preferred)
 }
 export function toggleTheme() {
@@ -51,20 +63,35 @@ export function toggleTheme() {
 function applyTheme(theme) {
   state.theme = theme
   document.documentElement.setAttribute('data-theme', theme)
-  localStorage.setItem('theme', theme)
+  localStorage.setItem(THEME_KEY, theme)
 }
 
-let toastTimer = null
-export function showToast(msg) {
-  state.toast = msg
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { state.toast = null }, 2400)
+/* ---------- Bildirishnomalar ---------- */
+let toastSeq = 0
+
+export function dismissToast(id) {
+  state.toasts = state.toasts.filter((t) => t.id !== id)
 }
+
+/**
+ * Xabar ko'rsatadi.
+ * @param {string} text
+ * @param {'ok'|'err'|'info'} kind
+ */
+export function showToast(text, kind = 'ok', ms = 3200) {
+  const id = ++toastSeq
+  state.toasts.push({ id, kind, text })
+  setTimeout(() => dismissToast(id), ms)
+}
+
+export const toastOk = (text) => showToast(text, 'ok')
+export const toastErr = (text) => showToast(text, 'err')
+export const toastInfo = (text) => showToast(text, 'info')
 
 function fail(e, fallback) {
   const msg = e?.message || fallback
   state.error = msg
-  showToast(msg)
+  showToast(msg, 'err')
 }
 
 /** DRF ViewSet'lari sahifalangan javob qaytaradi ({count, next, previous, results}),
@@ -278,7 +305,8 @@ export async function updateUser(user, patch) {
   try {
     const payload = { name: patch.name, phone: patch.phone, is_active: patch.status === 'Faol' }
     if (TYPE_LABEL_TO_USER_KIND[patch.type]) payload.user_kind = TYPE_LABEL_TO_USER_KIND[patch.type]
-    const updated = await api.put(`/users/${user.id}`, payload)
+    // Qisman yangilash — PUT butun obyektni talab qiladi.
+    const updated = await api.patch(`/users/${user.id}`, payload)
     Object.assign(user, normalizeUser(updated))
     showToast(user.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()
@@ -290,7 +318,10 @@ export async function updateUser(user, patch) {
 export async function updateAgent(agent, patch) {
   try {
     const payload = { name: patch.name, commission_rate: patch.commission }
-    const updated = await api.put(`/agents/${agent.id}`, payload)
+    // PATCH, PUT emas: backend serializerida `phone` majburiy maydon va PUT
+    // to'liq obyektni talab qiladi — faqat ism/komissiyani yuborganda so'rov
+    // "phone: bu maydon majburiy" xatosi bilan rad etilardi.
+    const updated = await api.patch(`/agents/${agent.id}`, payload)
     Object.assign(agent, normalizeAgent(updated))
     showToast(agent.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()
@@ -365,7 +396,9 @@ export async function updateAdmin(admin, patch) {
   try {
     const body = { name: patch.name, phone: patch.phone, admin_title: patch.role, is_active: patch.status === 'Faol' }
     if (patch.password) body.password = patch.password
-    const updated = await api.put(`/admins/${admin.id}`, body)
+    // Parol o'zgartirilmasa uni yubormaymiz — PUT bo'lsa serializer uni
+    // majburiy deb hisoblab so'rovni rad etardi.
+    const updated = await api.patch(`/admins/${admin.id}`, body)
     Object.assign(admin, normalizeAdminAccount(updated))
     showToast(admin.name + ' ma\'lumotlari yangilandi')
     await refreshAudit()

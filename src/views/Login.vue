@@ -1,7 +1,8 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import Icon from '../components/Icon.vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import UiIcon from '../components/UiIcon.vue'
 import { login, state } from '../store'
 
 const router = useRouter()
@@ -22,49 +23,62 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-glow"></div>
-    <div class="login-box">
+  <div class="login-wrap girih">
+    <div class="login-card">
       <div class="login-brand">
-        <span class="dot"><Icon name="settings" :size="16" /></span>
-        Uyimiz.uz
+        <svg class="mark"><use href="#star" /></svg>
+        <span>Uyimiz <b>Admin</b></span>
       </div>
-      <h1>Admin panelga kirish</h1>
-      <p class="login-sub">Davom etish uchun login va parolingizni kiriting</p>
 
-      <form @submit.prevent="onSubmit" novalidate>
-        <div class="form-row">
+      <h1>Admin panelga kirish</h1>
+      <p class="sub">Davom etish uchun telefon raqami va parolingizni kiriting</p>
+
+      <form class="form-grid" novalidate @submit.prevent="onSubmit">
+        <div class="form-field">
           <label>Telefon</label>
-          <input
-            v-model="phone"
-            type="text"
-            placeholder="+998 90 123 45 67"
-            autocomplete="username"
-            autofocus
-          />
-        </div>
-        <div class="form-row">
-          <label>Parol</label>
-          <div class="pw-wrap">
+          <div class="inp">
+            <UiIcon name="i-phone" :size="15" />
             <input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              placeholder="••••••••"
-              autocomplete="current-password"
+              v-model="phone"
+              type="tel"
+              placeholder="+998 90 123 45 67"
+              autocomplete="username"
+              autofocus
             />
-            <button class="pw-toggle" type="button" @click="showPassword = !showPassword" tabindex="-1">
-              <Icon :name="showPassword ? 'eye-off' : 'eye'" :size="17" />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Parol</label>
+          <div class="pw">
+            <div class="inp">
+              <UiIcon name="i-lock" :size="15" />
+              <input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="••••••••"
+                autocomplete="current-password"
+              />
+            </div>
+            <button
+              class="pw-eye"
+              type="button"
+              tabindex="-1"
+              :aria-label="showPassword ? 'Parolni yashirish' : 'Parolni ko‘rsatish'"
+              @click="showPassword = !showPassword"
+            >
+              <UiIcon :name="showPassword ? 'i-eye-off' : 'i-eye'" :size="16" />
             </button>
           </div>
         </div>
 
-        <Transition name="fade-slide">
-          <div v-if="state.authError" class="login-error">{{ state.authError }}</div>
+        <Transition name="toast">
+          <div v-if="state.authError" class="form-error">{{ state.authError }}</div>
         </Transition>
 
-        <button class="btn btn-primary login-submit" type="submit" :disabled="state.authLoading">
-          <span v-if="state.authLoading" class="spinner spinner-sm"></span>
-          <span v-else>Kirish</span>
+        <button class="btn btn-pri login-submit" type="submit" :disabled="state.authLoading">
+          <span v-if="state.authLoading" class="spinner" />
+          <span>{{ state.authLoading ? 'Tekshirilmoqda…' : 'Kirish' }}</span>
         </button>
       </form>
     </div>

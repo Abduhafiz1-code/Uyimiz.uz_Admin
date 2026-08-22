@@ -1,10 +1,13 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import Sidebar from './components/Sidebar.vue'
-import Toast from './components/Toast.vue'
-import Icon from './components/Icon.vue'
-import { state, loadAll } from './store'
+
+import AdminLayout from './components/AdminLayout.vue'
+import EmptyState from './components/EmptyState.vue'
+import IconSprite from './components/IconSprite.vue'
+import SkeletonRows from './components/SkeletonRows.vue'
+import ToastHost from './components/ToastHost.vue'
+import { loadAll, state } from './store'
 
 const route = useRoute()
 const isAuthLayout = computed(() => !route.meta.public)
@@ -14,33 +17,38 @@ watch(
   (token) => {
     if (token) loadAll()
   },
-  { immediate: true }
+  { immediate: true },
 )
 </script>
 
 <template>
-  <template v-if="isAuthLayout">
-    <Sidebar />
-    <main class="main">
-      <button class="btn mobile-toggle" style="margin-bottom:14px;" @click="state.sidebarOpen = !state.sidebarOpen">
-        <Icon name="menu" :size="20" />
-      </button>
+  <IconSprite />
 
-      <div v-if="state.loading" class="panel" style="text-align:center;padding:52px;">
-        <div class="spinner"></div>
-        <span style="color:var(--muted);font-size:13.5px;font-weight:600;">Ma'lumotlar yuklanmoqda...</span>
+  <AdminLayout v-if="isAuthLayout">
+    <!-- Yuklanish: bo'sh ekran o'rniga jadval shaklidagi skelet -->
+    <div v-if="state.loading" class="anim-fade">
+      <div class="grid-kpi" style="margin-bottom: 22px">
+        <div v-for="i in 4" :key="i" class="sk" style="height: 96px" />
       </div>
-      <div v-else-if="state.error" class="panel" style="text-align:center;padding:40px;color:var(--red);">
-        {{ state.error }}
-        <div style="margin-top:12px;"><button class="btn btn-dark" @click="loadAll">Qayta urinish</button></div>
-      </div>
-      <router-view v-else v-slot="{ Component, route }">
-        <Transition name="fade-slide" mode="out-in">
-          <component :is="Component" :key="route.path" />
-        </Transition>
-      </router-view>
-    </main>
-  </template>
-  <router-view v-else />
-  <Toast />
+      <SkeletonRows :rows="7" />
+    </div>
+
+    <EmptyState
+      v-else-if="state.error"
+      title="Backendga ulanib bo'lmadi"
+      :note="state.error"
+    >
+      <button class="btn btn-pri" @click="loadAll">Qayta urinish</button>
+    </EmptyState>
+
+    <RouterView v-else v-slot="{ Component, route: r }">
+      <Transition name="page" mode="out-in">
+        <component :is="Component" :key="r.path" />
+      </Transition>
+    </RouterView>
+  </AdminLayout>
+
+  <RouterView v-else />
+
+  <ToastHost />
 </template>

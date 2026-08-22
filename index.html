@@ -3,11 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0e14" />
+    <meta name="theme-color" content="#0f1216" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Uyimiz Agent paneli bilan bir xil shriftlar: sarlavha uchun
+         Bricolage Grotesque, matn uchun Manrope, raqam/yorliq uchun mono. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <title>Uyimiz.uz — Admin panel</title>
+    <script>
+      // Saqlangan mavzuni birinchi bo'yoqdan oldin qo'yamiz — aks holda
+      // sahifa bir lahza oq bo'lib "chaqnab" ketadi.
+      // Kalit Uyimiz Agent paneli bilan bir xil: ikkalasi bitta brauzerda
+      // ochilganda mavzu ham bir xil bo'lsin.
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('uyimiz_theme')
+          var theme =
+            saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+          document.documentElement.setAttribute('data-theme', theme)
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
